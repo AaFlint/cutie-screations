@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studio Viewer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg-main: #fff5f7;
+            --surface: #ffffff;
+            --primary: #ff758f;
+            --accent: #ffb3c1;
+            --text: #423235;
+            --muted: #a38f92;
+            --border: #ffe3e8;
+            --timing: cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Quicksand', sans-serif; }
+        body { background-color: var(--bg-main); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* Top Bar Navigation & Brand */
+        .studio-header { 
+            background-color: var(--surface); 
+            padding: 16px 24px; 
+            border-bottom: 2px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .studio-logo { font-family: 'Fredoka', sans-serif; font-size: 1.4rem; color: var(--primary); font-weight: 700; }
+        .greeting-text { font-family: 'Fredoka', sans-serif; font-size: 1.05rem; color: var(--primary); font-weight: 600; }
+
+        /* Reader Canvas Area */
+        .main-canvas-area {
+            flex: 1;
+            background-color: var(--surface);
+            display: flex;
+            flex-direction: column;
+            padding: 24px 14% 40px 14%;
+            overflow-y: auto;
+        }
+
+        /* NEW: Middle-Aligned Public Project Catalog Shelf */
+        .top-shelf-bar {
+            background-color: #fffafb;
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            overflow-x: auto;
+            white-space: nowrap;
+            margin-bottom: 25px;
+        }
+        .top-shelf-bar::-webkit-scrollbar { height: 6px; }
+        .top-shelf-bar::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 10px; }
+
+        .horizontal-management-list { display: flex; gap: 12px; align-items: center; }
+        
+        .row-card { 
+            background: var(--surface); 
+            padding: 8px 18px; 
+            border-radius: 12px; 
+            display: inline-flex; 
+            align-items: center; 
+            gap: 12px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.3s var(--timing);
+            flex-shrink: 0;
+        }
+        .row-card:hover { transform: translateY(-1px); border-color: var(--accent); }
+        .row-card.active-reading { border-color: var(--primary); background-color: #fff5f7; box-shadow: 0 2px 8px rgba(255,117,143,0.1); }
+
+        .row-badge { font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; color: white; font-weight: 700; text-transform: uppercase; }
+        .row-badge.novel { background-color: #ff8fab; }
+        .row-badge.manga { background-color: #4cc9f0; }
+        
+        .row-info-title { font-size: 0.9rem; font-weight: 700; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+
+        .welcome-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            color: var(--muted);
+            text-align: center;
+            gap: 12px;
+            min-height: 200px;
+        }
+        .welcome-placeholder h2 { font-family: 'Fredoka', sans-serif; color: var(--accent); }
+
+        .content-display-view { display: none; flex-direction: column; }
+        .content-display-view.active { display: flex; }
+
+        .viewer-title {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .viewer-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 24px;
+            padding-bottom: 14px;
+            border-bottom: 1px dashed var(--border);
+        }
+
+        /* Reading Content Panels */
+        .novel-text-block {
+            font-size: 1.1rem;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            color: var(--text);
+            background: #fffafb;
+            padding: 24px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+
+        .manga-reader-block {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+        }
+        .dummy-media-container {
+            width: 100%;
+            max-width: 600px;
+            aspect-ratio: 3/4;
+            background: #fff2f4;
+            border: 2px dashed var(--accent);
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+            font-weight: 700;
+            gap: 10px;
+        }
+        .manga-panel-description {
+            width: 100%;
+            font-size: 1.05rem;
+            line-height: 1.6;
+            padding: 16px 24px;
+            background: #f7fcfe;
+            border-left: 4px solid #4cc9f0;
+            border-radius: 0 12px 12px 0;
+            color: #2b3a42;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Main Navigation Header -->
+    <header class="studio-header">
+        <div class="studio-logo">Story Catalog</div>
+        <div id="greeting" class="greeting-text">Happy reading! ✨</div>
+    </header>
+
+    <!-- Immersive Reading Area -->
+    <main class="main-canvas-area">
+        
+        <!-- CATALOG SHELF BAR MOVED BELOW DOCK HEADER INSIDE CANVAS CONTAINER -->
+        <section class="top-shelf-bar">
+            <div id="storyList" class="horizontal-management-list">
+                <span style="color: var(--muted); font-size: 0.9rem; padding-left: 8px;">Loading public catalog...</span>
+            </div>
+        </section>
+
+        <!-- Empty State splash Screen -->
+        <div id="placeholderView" class="welcome-placeholder">
+            <h2>🎀cutie creations🎀</h2>
+            <p>Pick a project from above to begin reading!</p>
+        </div>
+
+        <!-- Dynamic Content Panel View -->
+        <div id="contentView" class="content-display-view">
+            <h1 id="viewTitle" class="viewer-title">Project Title</h1>
+            
+            <div class="viewer-meta">
+                <span id="viewBadge" class="row-badge">Format</span>
+            </div>
+
+            <!-- Novel Manuscript Renderer Block -->
+            <div id="novelRender" style="display: none;">
+                <p id="novelText" class="novel-text-block"></p>
+            </div>
+
+            <!-- Manga Comic Renderer Block -->
+            <div id="mangaRender" style="display: none;" class="manga-reader-block">
+                <div class="dummy-media-container">
+                    <span>🖼️ Attached Chapter File</span>
+                    <span style="font-size: 0.8rem; font-weight: 500; color: var(--muted);">Media content safely mapped</span>
+                </div>
+                <div id="mangaText" class="manga-panel-description"></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Database Client Connect setup
+        const SUPABASE_URL = "https://vmdpxqgemkwcojgjziuh.supabase.co";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZtZHB4cWdlbWt3Y29qZ2p6aXVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyMzg2NTgsImV4cCI6MjA5ODgxNDY1OH0.sAlGQJzAy8JLUvfBuyfNo23v3A5IStwYhNbMMbDVtFQ";
+        const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let activeProjectId = null;
+
+        async function loadCatalog() {
+            const { data: stories, error } = await db.from('stories').select('*').order('created_at', { ascending: false });
+            if (error || !stories) return;
+
+            const listEl = document.getElementById('storyList');
+            listEl.innerHTML = '';
+
+            if (stories.length === 0) {
+                listEl.innerHTML = `<span style="color: var(--muted); font-size: 0.9rem; padding-left: 8px;">No projects published yet!</span>`;
+                return;
+            }
+
+            stories.forEach(story => {
+                const isActive = activeProjectId === story.id;
+                const card = document.createElement('div');
+                card.className = `row-card ${isActive ? 'active-writing' : ''}`;
+                card.setAttribute('onclick', `renderProject('${story.id}', '${escape(story.title)}', '${story.type}', '${escape(story.synopsis || '')}', '${story.text_color || ''}')`);
+                
+                card.innerHTML = `
+                    <span class="row-badge ${story.type}">${story.type}</span>
+                    <span class="row-info-title" style="color: ${story.text_color || 'inherit'};">${story.title || 'Untitled'}</span>
+                `;
+                listEl.appendChild(card);
+            });
+        }
+
+        function renderProject(id, title, type, content, color) {
+            activeProjectId = id;
+
+            // Clear empty display layout state parameters
+            document.getElementById('placeholderView').style.display = 'none';
+            document.getElementById('contentView').classList.add('active');
+
+            const titleEl = document.getElementById('viewTitle');
+            titleEl.innerText = unescape(title);
+            titleEl.style.color = color || 'inherit';
+
+            const badgeEl = document.getElementById('viewBadge');
+            badgeEl.className = `row-badge ${type}`;
+            badgeEl.innerText = type === 'novel' ? '🌸 Novel Format' : '🌸 Manga Format';
+
+            if (type === 'novel') {
+                document.getElementById('mangaRender').style.display = 'none';
+                document.getElementById('novelRender').style.display = 'block';
+                document.getElementById('novelText').innerText = unescape(content);
+                document.getElementById('novelText').style.color = color || 'inherit';
+            } else {
+                document.getElementById('novelRender').style.display = 'none';
+                document.getElementById('mangaRender').style.display = 'flex';
+                document.getElementById('mangaText').innerText = unescape(content);
+            }
+
+            loadCatalog();
+        }
+
+        loadCatalog();
+    </script>
+</body>
+</html>
+novel
